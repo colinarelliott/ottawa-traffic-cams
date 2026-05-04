@@ -5,7 +5,6 @@ import path from "path";
 import rateLimit from "express-rate-limit";
 import { CAMERAS } from "./cameras.js";
 import { captureStatus } from "./capture.js";
-import { encodeDate } from "./encode.js";
 
 const VIDEOS_DIR = process.env.VIDEOS_DIR ?? "./data/videos";
 
@@ -129,20 +128,6 @@ export function createRouter() {
       out[cam.id] = { name: cam.name, ...captureStatus.get(cam.id) };
     }
     res.json(out);
-  });
-
-  // POST /api/encode/:date
-  // Manually triggers encoding for a given date (useful for testing or re-encoding).
-  // Responds immediately; encoding runs in the background.
-  router.post("/encode/:date", (req, res) => {
-    const { date } = req.params;
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
-      return res.status(400).json({ error: "Invalid date format — use YYYY-MM-DD" });
-    }
-    res.json({ message: `Encoding started for ${date}` });
-    encodeDate(date).catch((err) =>
-      console.error(`[encode] Manual trigger for ${date} failed: ${err.message}`)
-    );
   });
 
   return router;
