@@ -34,6 +34,3 @@ dist-ssr
 
 # Ignore server data
 data/
-
-# Temporarily ignore the server itself while in development
-server/
