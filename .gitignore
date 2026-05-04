@@ -29,4 +29,11 @@ dist-ssr
 .AppleDouble
 .LSOverride
 
+# Private
+.env
 
+# Ignore server data
+data/
+
+# Temporarily ignore the server itself while in development
+server/

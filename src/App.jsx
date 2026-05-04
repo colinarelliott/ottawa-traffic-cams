@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import "./App.css";
+import Playback from "./Playback.jsx";
 
 const REFRESH_MS = 5000;
 
@@ -27,9 +28,15 @@ const getCameraUrl = (id, tick) =>
   `https://traffic.ottawa.ca/camera?id=${id}&timems=${tick}`;
 
 function App() {
+  const [mode, setMode] = useState("live"); // "live" | "playback"
   const [tick, setTick] = useState(Date.now());
   const [paused, setPaused] = useState(false);
   const [fullscreen, setFullscreen] = useState(null);
+
+  function switchMode(m) {
+    setMode(m);
+    setFullscreen(null);
+  }
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -43,34 +50,58 @@ function App() {
 
   return (
     <div className="app">
-      <div className={`grid ${fullscreen !== null ? "hidden" : ""}`}>
-        {CAMERAS.map((cam, i) => (
-          <div
-            className="cam-wrapper"
-            key={cam.id}
-            onMouseEnter={() => setPaused(true)}
-            onMouseLeave={() => setPaused(false)}
-            onClick={() => setFullscreen(i)}
+      <header className="app-header">
+        <span className="app-title">Ottawa Traffic Cams</span>
+        <div className="mode-tabs">
+          <button
+            className={`mode-tab${mode === "live" ? " active" : ""}`}
+            onClick={() => switchMode("live")}
           >
-            <img
-              className="cam"
-              src={getCameraUrl(cam.id, tick)}
-              alt={cam.name}
-              referrerPolicy="no-referrer"
-            />
-            <div className="label">{cam.name}</div>
-          </div>
-        ))}
-      </div>
-
-      {fullscreen !== null && (
-        <div className="fullscreen" onClick={() => setFullscreen(null)}>
-          <img
-            src={getCameraUrl(CAMERAS[fullscreen].id, tick)}
-            alt="fullscreen"
-          />
+            Live
+          </button>
+          <button
+            className={`mode-tab${mode === "playback" ? " active" : ""}`}
+            onClick={() => switchMode("playback")}
+          >
+            Playback
+          </button>
         </div>
+      </header>
+
+      {mode === "live" && (
+        <>
+          <div className={`grid ${fullscreen !== null ? "hidden" : ""}`}>
+            {CAMERAS.map((cam, i) => (
+              <div
+                className="cam-wrapper"
+                key={cam.id}
+                onMouseEnter={() => setPaused(true)}
+                onMouseLeave={() => setPaused(false)}
+                onClick={() => setFullscreen(i)}
+              >
+                <img
+                  className="cam"
+                  src={getCameraUrl(cam.id, tick)}
+                  alt={cam.name}
+                  referrerPolicy="no-referrer"
+                />
+                <div className="label">{cam.name}</div>
+              </div>
+            ))}
+          </div>
+
+          {fullscreen !== null && (
+            <div className="fullscreen" onClick={() => setFullscreen(null)}>
+              <img
+                src={getCameraUrl(CAMERAS[fullscreen].id, tick)}
+                alt="fullscreen"
+              />
+            </div>
+          )}
+        </>
       )}
+
+      {mode === "playback" && <Playback />}
     </div>
   );
 }
