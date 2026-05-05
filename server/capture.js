@@ -1,5 +1,6 @@
 import fs from "fs/promises";
 import path from "path";
+import { spawn } from "child_process";
 import cron from "node-cron";
 import { CAMERAS, getCameraUrl } from "./cameras.js";
 
@@ -7,10 +8,66 @@ const CAPTURE_INTERVAL_MS = 5000;
 const FRAMES_DIR = process.env.FRAMES_DIR ?? "./data/frames";
 const TIMEZONE = process.env.TZ_LOCAL ?? "America/Toronto";
 
+// Expected resolution of a valid Ottawa traffic camera frame.
+const VALID_WIDTH = 800;
+const VALID_HEIGHT = 450;
+
+// Path to the black replacement frame, generated once at startup.
+const BLACK_FRAME_PATH = path.join(FRAMES_DIR, "black.jpg");
+
 // Per-camera status exposed to the /api/status endpoint.
 export const captureStatus = new Map(
-  CAMERAS.map((c) => [c.id, { lastCapture: null, todayCount: 0, errors: 0 }])
+  CAMERAS.map((c) => [c.id, { lastCapture: null, todayCount: 0, errors: 0, noSignal: 0, retainedCount: 0 }])
 );
+
+// Parses width/height from a JPEG buffer by scanning for SOF markers.
+// No external library needed — the dimensions are in the raw header bytes.
+function getJpegDimensions(buffer) {
+  let i = 2; // skip SOI marker (FF D8)
+  while (i + 8 < buffer.length) {
+    if (buffer[i] !== 0xFF) break;
+    const marker = buffer[i + 1];
+    const segLen = buffer.readUInt16BE(i + 2);
+    // SOF0–SOF3, SOF5–SOF7, SOF9–SOF11, SOF13–SOF15
+    if (
+      (marker >= 0xC0 && marker <= 0xC3) ||
+      (marker >= 0xC5 && marker <= 0xC7) ||
+      (marker >= 0xC9 && marker <= 0xCB) ||
+      (marker >= 0xCD && marker <= 0xCF)
+    ) {
+      return {
+        height: buffer.readUInt16BE(i + 5),
+        width: buffer.readUInt16BE(i + 7),
+      };
+    }
+    i += 2 + segLen;
+  }
+  return null;
+}
+
+// Generates a black JPEG at BLACK_FRAME_PATH using ffmpeg (runs once at startup).
+async function ensureBlackFrame() {
+  try {
+    await fs.access(BLACK_FRAME_PATH);
+    return; // already exists
+  } catch {}
+
+  await fs.mkdir(FRAMES_DIR, { recursive: true });
+  await new Promise((resolve, reject) => {
+    const ff = spawn("ffmpeg", [
+      "-y",
+      "-f", "lavfi",
+      "-i", `color=c=black:s=${VALID_WIDTH}x${VALID_HEIGHT}`,
+      "-frames:v", "1",
+      BLACK_FRAME_PATH,
+    ]);
+    ff.on("error", reject);
+    ff.on("close", (code) =>
+      code === 0 ? resolve() : reject(new Error(`ffmpeg exited with code ${code}`))
+    );
+  });
+  console.log(`[capture] Generated black frame at ${BLACK_FRAME_PATH}`);
+}
 
 function todayStr() {
   // Use local timezone so the directory date matches the wall-clock day,
@@ -30,12 +87,23 @@ async function captureCamera(cam) {
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
   const buffer = Buffer.from(await res.arrayBuffer());
-  // Filename is the Unix timestamp in ms — sorts correctly for ffmpeg ordering.
-  await fs.writeFile(path.join(dir, `${Date.now()}.jpg`), buffer);
+  const dims = getJpegDimensions(buffer);
+  const isValid = dims?.width === VALID_WIDTH && dims?.height === VALID_HEIGHT;
+
+  const destPath = path.join(dir, `${Date.now()}.jpg`);
+  if (isValid) {
+    await fs.writeFile(destPath, buffer);
+  } else {
+    // No-signal frame — substitute a black frame to preserve timing.
+    await fs.copyFile(BLACK_FRAME_PATH, destPath);
+    captureStatus.get(cam.id).noSignal++;
+    console.warn(`[capture] Camera ${cam.id}: no-signal frame replaced with black (got ${dims ? `${dims.width}x${dims.height}` : "unparseable"})`);
+  }
 
   const s = captureStatus.get(cam.id);
   s.lastCapture = new Date().toISOString();
   s.todayCount++;
+  if (isValid) s.retainedCount++;
 }
 
 async function captureAll() {
@@ -52,10 +120,13 @@ async function captureAll() {
   );
 }
 
-export function startCaptureService() {
+export async function startCaptureService() {
   console.log(
     `[capture] Starting — ${CAMERAS.length} cameras every ${CAPTURE_INTERVAL_MS}ms`
   );
+
+  await ensureBlackFrame();
+
   captureAll(); // capture immediately on startup, then on each interval
   setInterval(captureAll, CAPTURE_INTERVAL_MS);
 
@@ -64,6 +135,8 @@ export function startCaptureService() {
     for (const s of captureStatus.values()) {
       s.todayCount = 0;
       s.errors = 0;
+      s.noSignal = 0;
+      s.retainedCount = 0;
     }
   }, { timezone: TIMEZONE });
 }

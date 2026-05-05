@@ -49,6 +49,8 @@ app.listen(PORT, () => {
   } else {
     console.warn("[server] ALLOWED_ORIGIN not set — CORS disabled (same-origin only)");
   }
-  startCaptureService();
+  startCaptureService().catch((err) =>
+    console.error("[capture] Failed to start:", err.message)
+  );
   scheduleEncoding();
 });

@@ -140,7 +140,11 @@ export function createRouter() {
   router.get("/status", (_req, res) => {
     const out = {};
     for (const cam of CAMERAS) {
-      out[cam.id] = { name: cam.name, ...captureStatus.get(cam.id) };
+      const s = captureStatus.get(cam.id);
+      const retainPct = s.todayCount > 0
+        ? Math.round((s.retainedCount / s.todayCount) * 100)
+        : null;
+      out[cam.id] = { name: cam.name, ...s, retainPct };
     }
     res.json(out);
   });
