@@ -64,6 +64,7 @@ export default function Playback() {
               key={`${selected.cameraId}-${selected.date}`}
               className="pb-video"
               src={videoSrc(selected.cameraId, selected.date)}
+              crossOrigin="use-credentials"
               controls
               autoPlay
             />
