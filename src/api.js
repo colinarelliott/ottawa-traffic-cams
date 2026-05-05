@@ -30,3 +30,13 @@ export async function apiFetch(path) {
 export function videoSrc(cameraId, date) {
   return `${API_BASE}/api/videos/${cameraId}/${date}`;
 }
+
+// Weekly timelapse URL.
+export function weeklySrc(cameraId, weekEnd) {
+  return `${API_BASE}/api/weekly/${cameraId}/${weekEnd}`;
+}
+
+// Monthly timelapse URL.
+export function monthlySrc(cameraId, monthEnd) {
+  return `${API_BASE}/api/monthly/${cameraId}/${monthEnd}`;
+}
