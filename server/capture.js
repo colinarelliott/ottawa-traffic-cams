@@ -159,6 +159,7 @@ export async function startCaptureService() {
           await fs.writeFile(path.join(dir, "_nosignal"), String(s.noSignal)).catch(() => {});
         }
         s.retainedCount = s.todayCount - s.noSignal;
+        console.log(`[capture] Init camera ${cam.id}: ${s.todayCount} frames, ${s.noSignal} no-signal, ${s.errors} errors`);
       } catch { /* no frames yet today — leave counters at 0 */ }
     })
   );

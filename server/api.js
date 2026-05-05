@@ -459,8 +459,11 @@ export function createRouter() {
         } catch { /* directory doesn't exist yet */ }
 
         const noSignalCount = status.noSignal;
-        const retainPct = todayCount > 0
-          ? Math.round(((todayCount - noSignalCount) / todayCount) * 100)
+        const validCount = todayCount - noSignalCount;
+        // Use expectedCount as denominator so both errors (missing frames) and
+        // no-signal frames drag this number down, not just no-signal alone.
+        const retainPct = expectedCount > 0
+          ? Math.round((validCount / expectedCount) * 100)
           : null;
         const capturePct = expectedCount > 0
           ? Math.round((todayCount / expectedCount) * 100)
@@ -488,7 +491,7 @@ export function createRouter() {
           todayCount,
           expectedCount,
           capturePct,
-          retainedCount: status.retainedCount,
+          retainedCount: validCount,
           retainPct,
           errors: status.errors,
           noSignal: noSignalCount,
