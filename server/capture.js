@@ -130,6 +130,10 @@ export async function startCaptureService() {
 
   await ensureBlackFrame();
 
+  // Get the black frame's file size — used as a fingerprint to detect black frames
+  // on disk without hashing every file (avoids reading file contents at scale).
+  const blackFrameSize = (await fs.stat(BLACK_FRAME_PATH)).size;
+
   // Re-initialize today's counters from disk so a restart doesn't lose the tally.
   const todayDate = new Intl.DateTimeFormat("en-CA", { timeZone: TIMEZONE }).format(new Date());
   await Promise.allSettled(
@@ -137,10 +141,23 @@ export async function startCaptureService() {
       const dir = path.join(FRAMES_DIR, String(cam.id), todayDate);
       const s = captureStatus.get(cam.id);
       try {
-        const files = await fs.readdir(dir);
-        s.todayCount = files.filter((f) => f.endsWith(".jpg")).length;
-        const noSignalStr = await fs.readFile(path.join(dir, "_nosignal"), "utf8").catch(() => "0");
-        s.noSignal = parseInt(noSignalStr, 10) || 0;
+        const files = (await fs.readdir(dir)).filter((f) => f.endsWith(".jpg"));
+        s.todayCount = files.length;
+
+        // Prefer the sidecar if it exists (written incrementally, no per-file stat needed).
+        // Fall back to a size-based scan for frames captured before the sidecar was introduced.
+        const sidecarStr = await fs.readFile(path.join(dir, "_nosignal"), "utf8").catch(() => null);
+        if (sidecarStr !== null) {
+          s.noSignal = parseInt(sidecarStr, 10) || 0;
+        } else {
+          // Scan each frame's size against the known black frame size.
+          const stats = await Promise.all(
+            files.map((f) => fs.stat(path.join(dir, f)).then((st) => st.size))
+          );
+          s.noSignal = stats.filter((sz) => sz === blackFrameSize).length;
+          // Write the sidecar so future restarts skip this scan.
+          await fs.writeFile(path.join(dir, "_nosignal"), String(s.noSignal)).catch(() => {});
+        }
         s.retainedCount = s.todayCount - s.noSignal;
       } catch { /* no frames yet today — leave counters at 0 */ }
     })
