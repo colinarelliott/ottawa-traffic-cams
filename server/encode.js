@@ -8,9 +8,11 @@ const FRAMES_DIR = process.env.FRAMES_DIR ?? "./data/frames";
 const VIDEOS_DIR = process.env.VIDEOS_DIR ?? "./data/videos";
 const TIMELAPSE_FPS = parseInt(process.env.TIMELAPSE_FPS ?? "30", 10);
 const RETAIN_DAYS = parseInt(process.env.RETAIN_DAYS ?? "5", 10);
+const TIMEZONE = process.env.TZ_LOCAL ?? "America/Toronto";
 
 function dateStr(d = new Date()) {
-  return d.toISOString().slice(0, 10);
+  // Format in local timezone so directory names match wall-clock days.
+  return new Intl.DateTimeFormat("en-CA", { timeZone: TIMEZONE }).format(d);
 }
 
 function yesterday() {
@@ -103,13 +105,16 @@ async function encodeCamera(cameraId, date) {
 
 export async function encodeDate(date) {
   console.log(`[encode] Starting batch encode for ${date}`);
-  for (const cam of CAMERAS) {
-    try {
-      await encodeCamera(cam.id, date);
-    } catch (err) {
-      console.error(`[encode] Camera ${cam.id} failed: ${err.message}`);
+  // Encode all cameras in parallel so a slow or failing camera doesn't
+  // block the rest, and the total wall-clock time is much shorter.
+  const results = await Promise.allSettled(
+    CAMERAS.map((cam) => encodeCamera(cam.id, date))
+  );
+  results.forEach((r, i) => {
+    if (r.status === "rejected") {
+      console.error(`[encode] Camera ${CAMERAS[i].id} failed: ${r.reason?.message}`);
     }
-  }
+  });
   console.log(`[encode] Batch encode complete for ${date}`);
 }
 
@@ -149,6 +154,6 @@ export function scheduleEncoding() {
   cron.schedule("5 0 * * *", async () => {
     await encodeDate(yesterday());
     await pruneOldVideos();
-  });
-  console.log(`[encode] Nightly encoding scheduled at 00:05 (retaining ${RETAIN_DAYS} days)`);
+  }, { timezone: TIMEZONE });
+  console.log(`[encode] Nightly encoding scheduled at 00:05 ${TIMEZONE} (retaining ${RETAIN_DAYS} days)`);
 }

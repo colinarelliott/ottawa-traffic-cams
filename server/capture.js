@@ -5,6 +5,7 @@ import { CAMERAS, getCameraUrl } from "./cameras.js";
 
 const CAPTURE_INTERVAL_MS = 5000;
 const FRAMES_DIR = process.env.FRAMES_DIR ?? "./data/frames";
+const TIMEZONE = process.env.TZ_LOCAL ?? "America/Toronto";
 
 // Per-camera status exposed to the /api/status endpoint.
 export const captureStatus = new Map(
@@ -12,7 +13,9 @@ export const captureStatus = new Map(
 );
 
 function todayStr() {
-  return new Date().toISOString().slice(0, 10); // "YYYY-MM-DD"
+  // Use local timezone so the directory date matches the wall-clock day,
+  // not UTC (which rolls over at 8 pm EDT and would split an evening capture).
+  return new Intl.DateTimeFormat("en-CA", { timeZone: TIMEZONE }).format(new Date());
 }
 
 async function captureCamera(cam) {
@@ -56,11 +59,11 @@ export function startCaptureService() {
   captureAll(); // capture immediately on startup, then on each interval
   setInterval(captureAll, CAPTURE_INTERVAL_MS);
 
-  // Reset per-day counters at midnight (the encode job fires at 00:05).
+  // Reset per-day counters at local midnight (the encode job fires at 00:05).
   cron.schedule("0 0 * * *", () => {
     for (const s of captureStatus.values()) {
       s.todayCount = 0;
       s.errors = 0;
     }
-  });
+  }, { timezone: TIMEZONE });
 }
