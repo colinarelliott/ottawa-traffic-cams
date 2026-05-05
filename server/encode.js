@@ -119,12 +119,14 @@ export async function encodeDate(date) {
 }
 
 async function pruneOldVideos() {
-  const cutoff = new Date();
-  cutoff.setDate(cutoff.getDate() - RETAIN_DAYS);
-  const cutoffStr = dateStr(cutoff); // "YYYY-MM-DD" — string comparison works correctly
-
   let totalDeleted = 0;
+
   for (const cam of CAMERAS) {
+    const retain = cam.retainDays ?? RETAIN_DAYS;
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - retain);
+    const cutoffStr = dateStr(cutoff); // "YYYY-MM-DD" — string comparison works correctly
+
     const camDir = path.join(VIDEOS_DIR, String(cam.id));
     let files;
     try {
@@ -136,15 +138,16 @@ async function pruneOldVideos() {
       const fileDate = file.replace(".mp4", "");
       if (fileDate < cutoffStr) {
         await fs.unlink(path.join(camDir, file));
-        console.log(`[prune] Deleted ${camDir}/${file}`);
+        console.log(`[prune] Deleted ${camDir}/${file} (retain=${retain} days)`);
         totalDeleted++;
       }
     }
   }
+
   if (totalDeleted > 0) {
-    console.log(`[prune] Removed ${totalDeleted} video(s) older than ${RETAIN_DAYS} days`);
+    console.log(`[prune] Removed ${totalDeleted} video(s)`);
   } else {
-    console.log(`[prune] Nothing to prune (retain=${RETAIN_DAYS} days)`);
+    console.log(`[prune] Nothing to prune`);
   }
 }
 

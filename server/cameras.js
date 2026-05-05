@@ -1,4 +1,6 @@
 // Mirrors the camera list in src/App.jsx — keep in sync if cameras change.
+// Add retainDays to any camera to override the global RETAIN_DAYS for that camera, e.g.:
+//   { id: 242, name: "[242] Bayview/Scott", retainDays: 30 }
 export const CAMERAS = [
   { id: 258, name: "[258] Scott/Smirle" },
   { id: 114, name: "[114] Holland/Scott" },
