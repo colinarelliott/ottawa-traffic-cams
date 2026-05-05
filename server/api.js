@@ -2,9 +2,38 @@ import express from "express";
 import fs from "fs/promises";
 import { createReadStream, statSync } from "fs";
 import path from "path";
+import { createHmac, timingSafeEqual } from "crypto";
 import rateLimit from "express-rate-limit";
 import { CAMERAS } from "./cameras.js";
 import { captureStatus } from "./capture.js";
+
+const TOKEN_TTL_MS = 5 * 60 * 1000; // 5-minute short-lived tokens for video streaming
+
+function makeVideoToken(resource) {
+  const expiry = Date.now() + TOKEN_TTL_MS;
+  const sig = createHmac("sha256", process.env.API_SECRET)
+    .update(`${resource}:${expiry}`)
+    .digest("hex");
+  return `${expiry}:${sig}`;
+}
+
+function checkVideoToken(resource, token) {
+  if (!token || typeof token !== "string") return false;
+  const colonIdx = token.indexOf(":");
+  if (colonIdx === -1) return false;
+  const expiryStr = token.slice(0, colonIdx);
+  const sig = token.slice(colonIdx + 1);
+  const expiry = parseInt(expiryStr, 10);
+  if (!Number.isFinite(expiry) || Date.now() > expiry) return false;
+  const expected = createHmac("sha256", process.env.API_SECRET)
+    .update(`${resource}:${expiry}`)
+    .digest("hex");
+  try {
+    return timingSafeEqual(Buffer.from(sig, "hex"), Buffer.from(expected, "hex"));
+  } catch {
+    return false; // buffers of different lengths
+  }
+}
 
 const VIDEOS_DIR = process.env.VIDEOS_DIR ?? "./data/videos";
 
@@ -31,14 +60,34 @@ export function createRouter() {
     return res.json({ ok: true });
   });
 
-  // All subsequent routes require either the header key or the session cookie.
+  // All subsequent routes require a session cookie, the x-api-key header, or a
+  // short-lived HMAC token (used by <video> elements on mobile where Safari's ITP
+  // blocks third-party cookies on cross-origin media requests).
   router.use((req, res, next) => {
     const headerKey = req.headers["x-api-key"];
     const cookieKey = req.cookies?.session;
-    if (headerKey !== process.env.API_SECRET && cookieKey !== process.env.API_SECRET) {
-      return res.status(401).json({ error: "Unauthorized" });
+    if (headerKey === process.env.API_SECRET || cookieKey === process.env.API_SECRET) {
+      return next();
     }
-    next();
+    // Accept a short-lived token on GET requests (video/weekly/monthly streaming).
+    if (req.method === "GET" && req.query.token) {
+      const resource = req.path.replace(/^\//, ""); // e.g. "videos/109/2026-05-04"
+      if (checkVideoToken(resource, req.query.token)) {
+        return next();
+      }
+    }
+    return res.status(401).json({ error: "Unauthorized" });
+  });
+
+  // GET /api/token?resource=videos/cameraId/date
+  // Issues a short-lived (5-min) HMAC token for a single streaming resource.
+  // Requires normal session auth so only authenticated clients can mint tokens.
+  router.get("/token", (req, res) => {
+    const { resource } = req.query;
+    if (!resource || typeof resource !== "string" || resource.length > 200) {
+      return res.status(400).json({ error: "resource query param required" });
+    }
+    res.json({ token: makeVideoToken(resource) });
   });
 
   // --- Rate limiting: 120 requests/min per IP ---
