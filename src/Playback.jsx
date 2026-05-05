@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { apiFetch, videoSrc, weeklySrc, monthlySrc } from "./api.js";
+import { apiFetch, getVideoSrc, getWeeklySrc, getMonthlySrc } from "./api.js";
 
 export default function Playback() {
   const [view, setView] = useState("daily"); // "daily" | "weekly" | "monthly"
@@ -8,6 +8,7 @@ export default function Playback() {
   const [monthlyRecordings, setMonthlyRecordings] = useState(null);
   const [error, setError] = useState(null);
   const [selected, setSelected] = useState(null); // { cameraId, cameraName, date, type }
+  const [resolvedSrc, setResolvedSrc] = useState(null);
 
   useEffect(() => {
     apiFetch("/api/videos")
@@ -25,6 +26,26 @@ export default function Playback() {
     setView(v);
     setSelected(null);
   }
+
+  // Fetch a short-lived token and build the authenticated video URL whenever
+  // the selection changes.  This avoids relying on cookies for the <video>
+  // request, which mobile Safari blocks on cross-origin media elements (ITP).
+  useEffect(() => {
+    if (!selected) {
+      setResolvedSrc(null);
+      return;
+    }
+    setResolvedSrc(null); // clear previous while loading
+    let cancelled = false;
+    const getSrc =
+      selected.type === "monthly"
+        ? getMonthlySrc(selected.cameraId, selected.date)
+        : selected.type === "weekly"
+        ? getWeeklySrc(selected.cameraId, selected.date)
+        : getVideoSrc(selected.cameraId, selected.date);
+    getSrc.then((url) => { if (!cancelled) setResolvedSrc(url); }).catch(console.error);
+    return () => { cancelled = true; };
+  }, [selected]);
 
   // Group daily recordings by camera.
   const grouped = [];
@@ -68,13 +89,7 @@ export default function Playback() {
     }
   }
 
-  const src = selected
-    ? selected.type === "monthly"
-      ? monthlySrc(selected.cameraId, selected.date)
-      : selected.type === "weekly"
-      ? weeklySrc(selected.cameraId, selected.date)
-      : videoSrc(selected.cameraId, selected.date)
-    : null;
+  const src = resolvedSrc;
 
   return (
     <div className="pb-layout">
@@ -184,7 +199,6 @@ export default function Playback() {
               key={`${selected.cameraId}-${selected.date}-${selected.type}`}
               className="pb-video"
               src={src}
-              crossOrigin="use-credentials"
               controls
               autoPlay
             />

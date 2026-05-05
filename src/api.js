@@ -26,7 +26,28 @@ export async function apiFetch(path) {
   return res.json();
 }
 
-// Video URL — no secret in the URL; the session cookie is sent automatically.
+// Video URL helpers — these fetch a short-lived HMAC token from the server so
+// the URL works on mobile Safari where ITP blocks cross-origin cookie sending
+// from <video> elements (even with crossOrigin="use-credentials").
+export async function getVideoSrc(cameraId, date) {
+  const resource = `videos/${cameraId}/${date}`;
+  const { token } = await apiFetch(`/api/token?resource=${encodeURIComponent(resource)}`);
+  return `${API_BASE}/api/${resource}?token=${encodeURIComponent(token)}`;
+}
+
+export async function getWeeklySrc(cameraId, weekEnd) {
+  const resource = `weekly/${cameraId}/${weekEnd}`;
+  const { token } = await apiFetch(`/api/token?resource=${encodeURIComponent(resource)}`);
+  return `${API_BASE}/api/${resource}?token=${encodeURIComponent(token)}`;
+}
+
+export async function getMonthlySrc(cameraId, monthEnd) {
+  const resource = `monthly/${cameraId}/${monthEnd}`;
+  const { token } = await apiFetch(`/api/token?resource=${encodeURIComponent(resource)}`);
+  return `${API_BASE}/api/${resource}?token=${encodeURIComponent(token)}`;
+}
+
+// Legacy plain-URL exports kept for reference but no longer used for playback.
 export function videoSrc(cameraId, date) {
   return `${API_BASE}/api/videos/${cameraId}/${date}`;
 }
