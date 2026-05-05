@@ -32,10 +32,41 @@ function App() {
   const [tick, setTick] = useState(Date.now());
   const [paused, setPaused] = useState(false);
   const [fullscreen, setFullscreen] = useState(null);
+  const [cameras, setCameras] = useState(() => {
+    try {
+      const saved = localStorage.getItem("cameras");
+      return saved ? JSON.parse(saved) : CAMERAS;
+    } catch {
+      return CAMERAS;
+    }
+  });
+  const [swapping, setSwapping] = useState(null); // { index, id, name }
 
   function switchMode(m) {
     setMode(m);
     setFullscreen(null);
+  }
+
+  function openSwap(e, i) {
+    e.stopPropagation();
+    setSwapping({ index: i, id: String(cameras[i].id), name: cameras[i].name });
+  }
+
+  function saveSwap(e) {
+    e.preventDefault();
+    const id = parseInt(swapping.id, 10);
+    if (!Number.isFinite(id)) return;
+    setCameras((prev) => {
+      const next = prev.map((cam, i) => (i === swapping.index ? { id, name: swapping.name } : cam));
+      localStorage.setItem("cameras", JSON.stringify(next));
+      return next;
+    });
+    setSwapping(null);
+  }
+
+  function resetCameras() {
+    localStorage.removeItem("cameras");
+    setCameras(CAMERAS);
   }
 
   useEffect(() => {
@@ -65,16 +96,21 @@ function App() {
           >
             Playback
           </button>
+          {cameras !== CAMERAS && cameras.some((c, i) => c.id !== CAMERAS[i]?.id || c.name !== CAMERAS[i]?.name) && (
+            <button className="mode-tab reset-tab" onClick={resetCameras} title="Restore default cameras">
+              Reset
+            </button>
+          )}
         </div>
       </header>
 
       {mode === "live" && (
         <>
           <div className={`grid ${fullscreen !== null ? "hidden" : ""}`}>
-            {CAMERAS.map((cam, i) => (
+            {cameras.map((cam, i) => (
               <div
                 className="cam-wrapper"
-                key={cam.id}
+                key={i}
                 onMouseEnter={() => setPaused(true)}
                 onMouseLeave={() => setPaused(false)}
                 onClick={() => setFullscreen(i)}
@@ -86,6 +122,11 @@ function App() {
                   referrerPolicy="no-referrer"
                 />
                 <div className="label">{cam.name}</div>
+                <button
+                  className="cam-edit-btn"
+                  title="Swap camera"
+                  onClick={(e) => openSwap(e, i)}
+                >✎</button>
               </div>
             ))}
           </div>
@@ -93,9 +134,45 @@ function App() {
           {fullscreen !== null && (
             <div className="fullscreen" onClick={() => setFullscreen(null)}>
               <img
-                src={getCameraUrl(CAMERAS[fullscreen].id, tick)}
+                src={getCameraUrl(cameras[fullscreen].id, tick)}
                 alt="fullscreen"
               />
+            </div>
+          )}
+
+          {swapping !== null && (
+            <div className="swap-overlay" onClick={() => setSwapping(null)}>
+              <form
+                className="swap-modal"
+                onClick={(e) => e.stopPropagation()}
+                onSubmit={saveSwap}
+              >
+                <div className="swap-title">Swap camera</div>
+                <label className="swap-label">
+                  Camera ID
+                  <input
+                    className="swap-input"
+                    type="number"
+                    min="1"
+                    value={swapping.id}
+                    onChange={(e) => setSwapping((s) => ({ ...s, id: e.target.value }))}
+                    autoFocus
+                  />
+                </label>
+                <label className="swap-label">
+                  Name
+                  <input
+                    className="swap-input"
+                    type="text"
+                    value={swapping.name}
+                    onChange={(e) => setSwapping((s) => ({ ...s, name: e.target.value }))}
+                  />
+                </label>
+                <div className="swap-actions">
+                  <button type="button" className="swap-btn swap-btn--cancel" onClick={() => setSwapping(null)}>Cancel</button>
+                  <button type="submit" className="swap-btn swap-btn--save">Save</button>
+                </div>
+              </form>
             </div>
           )}
         </>
