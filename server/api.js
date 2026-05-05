@@ -15,12 +15,27 @@ export function createRouter() {
   const router = express.Router();
 
   // --- Auth ---
-  // The video streaming endpoint is accessed via <video src>, which cannot send
-  // custom headers, so we also accept the secret as an `apiKey` query param.
+  // POST /api/auth: exchange the API secret for an httpOnly session cookie.
+  // This keeps the secret out of URLs and browser history.
+  router.post("/auth", (req, res) => {
+    const key = req.headers["x-api-key"] ?? req.body?.apiKey;
+    if (key !== process.env.API_SECRET) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+    res.cookie("session", process.env.API_SECRET, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV !== "development",
+      sameSite: "strict",
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+    });
+    return res.json({ ok: true });
+  });
+
+  // All subsequent routes require either the header key or the session cookie.
   router.use((req, res, next) => {
     const headerKey = req.headers["x-api-key"];
-    const queryKey = req.query.apiKey;
-    if (headerKey !== process.env.API_SECRET && queryKey !== process.env.API_SECRET) {
+    const cookieKey = req.cookies?.session;
+    if (headerKey !== process.env.API_SECRET && cookieKey !== process.env.API_SECRET) {
       return res.status(401).json({ error: "Unauthorized" });
     }
     next();

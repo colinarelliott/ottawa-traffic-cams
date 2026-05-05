@@ -1,6 +1,7 @@
 import "dotenv/config";
 import express from "express";
 import cors from "cors";
+import cookieParser from "cookie-parser";
 import { startCaptureService } from "./capture.js";
 import { scheduleEncoding } from "./encode.js";
 import { createRouter } from "./api.js";
@@ -25,10 +26,12 @@ app.use(
   cors({
     origin: ALLOWED_ORIGINS.length ? ALLOWED_ORIGINS : false,
     methods: ["GET", "POST"],
+    credentials: true,
   })
 );
 
 app.use(express.json());
+app.use(cookieParser());
 
 // Unauthenticated health check — useful for uptime monitors / Cloudflare Tunnel health.
 app.get("/health", (_req, res) => res.json({ ok: true }));
