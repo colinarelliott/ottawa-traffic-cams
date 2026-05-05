@@ -262,14 +262,32 @@ html, body, #root {
   height: 100%;
   background: black;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
   cursor: zoom-out;
+  gap: 12px;
 }
 
 .fullscreen img {
   max-width: 100%;
-  max-height: 100%;
+  max-height: calc(100% - 60px);
+  object-fit: contain;
+}
+
+.fullscreen-caption {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 24px;
+  color: #fff;
+  cursor: default;
+}
+
+.fullscreen-hint {
+  font-size: 13px;
+  color: #888;
+  cursor: default;
 }
 
 .hidden {

@@ -193,6 +193,20 @@ function App() {
                 src={getCameraUrl(cameras[fullscreen].id, tick)}
                 alt="fullscreen"
               />
+              <div className="fullscreen-caption">
+                {camStatus?.[cameras[fullscreen].id] && (
+                  <span className="label-rec" title="Recording">●</span>
+                )}
+                <span>{cameras[fullscreen].name}</span>
+                {camStatus?.[cameras[fullscreen].id]?.retainPct != null && (
+                  <span
+                    style={{ color: retainColor(camStatus[cameras[fullscreen].id].retainPct) }}
+                  >
+                    {camStatus[cameras[fullscreen].id].retainPct}%
+                  </span>
+                )}
+              </div>
+              <div className="fullscreen-hint">Click to return to all cams</div>
             </div>
           )}
 
