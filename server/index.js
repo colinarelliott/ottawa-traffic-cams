@@ -22,6 +22,10 @@ const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGIN ?? "")
 
 const app = express();
 
+// Trust the first proxy (Cloudflare / reverse proxy) so that express-rate-limit
+// can read the real client IP from X-Forwarded-For without throwing.
+app.set("trust proxy", 1);
+
 app.use(
   cors({
     origin: ALLOWED_ORIGINS.length ? ALLOWED_ORIGINS : false,
