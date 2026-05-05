@@ -47,6 +47,24 @@ export async function getMonthlySrc(cameraId, monthEnd) {
   return `${API_BASE}/api/${resource}?token=${encodeURIComponent(token)}`;
 }
 
+export async function getVideoVttSrc(cameraId, date) {
+  const resource = `videos/${cameraId}/${date}.vtt`;
+  const { token } = await apiFetch(`/api/token?resource=${encodeURIComponent(resource)}`);
+  return `${API_BASE}/api/${resource}?token=${encodeURIComponent(token)}`;
+}
+
+export async function getWeeklyVttSrc(cameraId, weekEnd) {
+  const resource = `weekly/${cameraId}/${weekEnd}.vtt`;
+  const { token } = await apiFetch(`/api/token?resource=${encodeURIComponent(resource)}`);
+  return `${API_BASE}/api/${resource}?token=${encodeURIComponent(token)}`;
+}
+
+export async function getMonthlyVttSrc(cameraId, monthEnd) {
+  const resource = `monthly/${cameraId}/${monthEnd}.vtt`;
+  const { token } = await apiFetch(`/api/token?resource=${encodeURIComponent(resource)}`);
+  return `${API_BASE}/api/${resource}?token=${encodeURIComponent(token)}`;
+}
+
 // Legacy plain-URL exports kept for reference but no longer used for playback.
 export function videoSrc(cameraId, date) {
   return `${API_BASE}/api/videos/${cameraId}/${date}`;

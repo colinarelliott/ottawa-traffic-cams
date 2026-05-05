@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { apiFetch, getVideoSrc, getWeeklySrc, getMonthlySrc } from "./api.js";
+import { apiFetch, getVideoSrc, getWeeklySrc, getMonthlySrc, getVideoVttSrc, getWeeklyVttSrc, getMonthlyVttSrc } from "./api.js";
 
 export default function Playback() {
   const [view, setView] = useState("daily"); // "daily" | "weekly" | "monthly"
@@ -9,6 +9,7 @@ export default function Playback() {
   const [error, setError] = useState(null);
   const [selected, setSelected] = useState(null); // { cameraId, cameraName, date, type }
   const [resolvedSrc, setResolvedSrc] = useState(null);
+  const [resolvedVttSrc, setResolvedVttSrc] = useState(null);
 
   useEffect(() => {
     apiFetch("/api/videos")
@@ -33,9 +34,11 @@ export default function Playback() {
   useEffect(() => {
     if (!selected) {
       setResolvedSrc(null);
+      setResolvedVttSrc(null);
       return;
     }
     setResolvedSrc(null); // clear previous while loading
+    setResolvedVttSrc(null);
     let cancelled = false;
     const getSrc =
       selected.type === "monthly"
@@ -43,7 +46,14 @@ export default function Playback() {
         : selected.type === "weekly"
         ? getWeeklySrc(selected.cameraId, selected.date)
         : getVideoSrc(selected.cameraId, selected.date);
+    const getVttSrc =
+      selected.type === "monthly"
+        ? getMonthlyVttSrc(selected.cameraId, selected.date)
+        : selected.type === "weekly"
+        ? getWeeklyVttSrc(selected.cameraId, selected.date)
+        : getVideoVttSrc(selected.cameraId, selected.date);
     getSrc.then((url) => { if (!cancelled) setResolvedSrc(url); }).catch(console.error);
+    getVttSrc.then((url) => { if (!cancelled) setResolvedVttSrc(url); }).catch(() => {});
     return () => { cancelled = true; };
   }, [selected]);
 
@@ -199,9 +209,14 @@ export default function Playback() {
               key={`${selected.cameraId}-${selected.date}-${selected.type}`}
               className="pb-video"
               src={src}
+              crossOrigin="anonymous"
               controls
               autoPlay
-            />
+            >
+              {resolvedVttSrc && (
+                <track kind="subtitles" src={resolvedVttSrc} default />
+              )}
+            </video>
           </>
         ) : (
           <div className="pb-player-empty">← Select a recording from the list</div>
