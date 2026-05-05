@@ -128,6 +128,27 @@ export function createRouter() {
     }
   });
 
+  // GET /api/videos/:cameraId/:date.vtt
+  // Serves the WebVTT timecode file for a daily timelapse.
+  router.get("/videos/:cameraId/:date.vtt", async (req, res) => {
+    const cameraId = parseInt(req.params.cameraId, 10);
+    const { date } = req.params;
+    if (!Number.isFinite(cameraId) || !VALID_CAMERA_IDS.has(cameraId)) {
+      return res.status(404).json({ error: "Unknown camera" });
+    }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      return res.status(400).json({ error: "Invalid date format — use YYYY-MM-DD" });
+    }
+    const filePath = path.join(VIDEOS_DIR, String(cameraId), `${date}.vtt`);
+    try {
+      const content = await fs.readFile(filePath, "utf8");
+      res.set("Content-Type", "text/vtt; charset=utf-8");
+      return res.send(content);
+    } catch {
+      return res.status(404).json({ error: "Timecode file not found" });
+    }
+  });
+
   // GET /api/videos/:cameraId/:date
   // Streams an MP4 with full Range header support so the <video> element can seek.
   router.get("/videos/:cameraId/:date", (req, res) => {
@@ -212,6 +233,27 @@ export function createRouter() {
     }
   });
 
+  // GET /api/weekly/:cameraId/:date.vtt
+  // Serves the WebVTT timecode file for a weekly timelapse.
+  router.get("/weekly/:cameraId/:date.vtt", async (req, res) => {
+    const cameraId = parseInt(req.params.cameraId, 10);
+    const { date } = req.params;
+    if (!Number.isFinite(cameraId) || !VALID_CAMERA_IDS.has(cameraId)) {
+      return res.status(404).json({ error: "Unknown camera" });
+    }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      return res.status(400).json({ error: "Invalid date format — use YYYY-MM-DD" });
+    }
+    const filePath = path.join(VIDEOS_DIR, String(cameraId), "weekly", `${date}.vtt`);
+    try {
+      const content = await fs.readFile(filePath, "utf8");
+      res.set("Content-Type", "text/vtt; charset=utf-8");
+      return res.send(content);
+    } catch {
+      return res.status(404).json({ error: "Timecode file not found" });
+    }
+  });
+
   // GET /api/weekly/:cameraId/:date
   // Streams a weekly MP4 with full Range header support.
   router.get("/weekly/:cameraId/:date", (req, res) => {
@@ -288,6 +330,27 @@ export function createRouter() {
       res.json(result);
     } catch (err) {
       res.status(500).json({ error: err.message });
+    }
+  });
+
+  // GET /api/monthly/:cameraId/:date.vtt
+  // Serves the WebVTT timecode file for a monthly timelapse.
+  router.get("/monthly/:cameraId/:date.vtt", async (req, res) => {
+    const cameraId = parseInt(req.params.cameraId, 10);
+    const { date } = req.params;
+    if (!Number.isFinite(cameraId) || !VALID_CAMERA_IDS.has(cameraId)) {
+      return res.status(404).json({ error: "Unknown camera" });
+    }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      return res.status(400).json({ error: "Invalid date format — use YYYY-MM-DD" });
+    }
+    const filePath = path.join(VIDEOS_DIR, String(cameraId), "monthly", `${date}.vtt`);
+    try {
+      const content = await fs.readFile(filePath, "utf8");
+      res.set("Content-Type", "text/vtt; charset=utf-8");
+      return res.send(content);
+    } catch {
+      return res.status(404).json({ error: "Timecode file not found" });
     }
   });
 

@@ -12,6 +12,84 @@ const RETAIN_WEEKS = parseInt(process.env.RETAIN_WEEKS ?? "12", 10);
 const RETAIN_MONTHS = parseInt(process.env.RETAIN_MONTHS ?? "12", 10);
 const TIMEZONE = process.env.TZ_LOCAL ?? "America/Toronto";
 
+// --- WebVTT timecode helpers ---
+
+// Converts a number of milliseconds into a VTT timestamp "HH:MM:SS.mmm".
+function msToVttTime(totalMs) {
+  const ms = Math.round(totalMs) % 1000;
+  const totalSec = Math.floor(totalMs / 1000);
+  const s = totalSec % 60;
+  const m = Math.floor(totalSec / 60) % 60;
+  const h = Math.floor(totalSec / 3600);
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}.${String(ms).padStart(3, "0")}`;
+}
+
+// Parses a VTT timestamp "HH:MM:SS.mmm" back into milliseconds.
+function vttTimeToMs(vttTime) {
+  const [hms, milliStr] = vttTime.split(".");
+  const [h, m, s] = hms.split(":").map(Number);
+  return (h * 3600 + m * 60 + s) * 1000 + parseInt(milliStr || "0", 10);
+}
+
+// Builds a WebVTT string for a daily timelapse.
+// Each cue spans one frame in video-time and shows the wall-clock time
+// derived from the frame's Unix-ms filename.
+function generateDailyVtt(files) {
+  const frameDurationMs = 1000 / TIMELAPSE_FPS;
+  const formatter = new Intl.DateTimeFormat("en-US", {
+    timeZone: TIMEZONE,
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: true,
+  });
+
+  const lines = ["WEBVTT", ""];
+  for (let i = 0; i < files.length; i++) {
+    const tsMs = parseInt(files[i].replace(".jpg", ""), 10);
+    const startMs = i * frameDurationMs;
+    const endMs = (i + 1) * frameDurationMs;
+    lines.push(`${msToVttTime(startMs)} --> ${msToVttTime(endMs)}`);
+    lines.push(formatter.format(new Date(tsMs)));
+    lines.push("");
+  }
+  return lines.join("\n");
+}
+
+// Concatenates multiple VTT files into one, shifting each segment's cue
+// timings by the cumulative video duration of all preceding segments.
+async function concatenateVtts(vttPaths) {
+  const segments = [];
+  let cumulativeMs = 0;
+
+  for (const vttPath of vttPaths) {
+    const content = await fs.readFile(vttPath, "utf8");
+    let segmentEndMs = 0;
+    const shifted = [];
+
+    for (const line of content.split("\n")) {
+      const m = line.trim().match(/^(\d{2}:\d{2}:\d{2}\.\d{3}) --> (\d{2}:\d{2}:\d{2}\.\d{3})$/);
+      if (m) {
+        const origStart = vttTimeToMs(m[1]);
+        const origEnd = vttTimeToMs(m[2]);
+        segmentEndMs = Math.max(segmentEndMs, origEnd);
+        shifted.push(`${msToVttTime(origStart + cumulativeMs)} --> ${msToVttTime(origEnd + cumulativeMs)}`);
+      } else if (line.trim() !== "WEBVTT") {
+        shifted.push(line);
+      }
+    }
+
+    cumulativeMs += segmentEndMs;
+    const trimmed = shifted.join("\n").replace(/^\n+/, "").replace(/\n+$/, "");
+    if (trimmed) segments.push(trimmed);
+  }
+
+  return "WEBVTT\n\n" + segments.join("\n\n") + "\n";
+}
+
 function dateStr(d = new Date()) {
   // Format in local timezone so directory names match wall-clock days.
   return new Intl.DateTimeFormat("en-CA", { timeZone: TIMEZONE }).format(d);
@@ -119,6 +197,10 @@ async function encodeCamera(cameraId, date) {
     });
   });
 
+  // Write a WebVTT timecode file alongside the MP4.
+  const vttFile = path.join(videosDir, `${date}.vtt`);
+  await fs.writeFile(vttFile, generateDailyVtt(files));
+
   // Delete raw frames to reclaim disk space now that the video exists.
   await Promise.all(files.map((f) => fs.unlink(path.join(framesDir, f))));
   await fs.unlink(listFile).catch(() => {}); // best-effort cleanup
@@ -192,6 +274,15 @@ async function encodeWeeklyForCamera(cam, weekDates, weekEndDate) {
     });
   });
 
+  // Concatenate the daily VTT timecode files into a weekly one.
+  const weeklyVttFile = path.join(camWeeklyDir, `${weekEndDate}.vtt`);
+  const dailyVttPaths = weekDates.map((d) => path.join(camDailyDir, `${d}.vtt`));
+  try {
+    await fs.writeFile(weeklyVttFile, await concatenateVtts(dailyVttPaths));
+  } catch (err) {
+    console.warn(`[weekly] Could not generate timecode VTT for camera ${cam.id}: ${err.message}`);
+  }
+
   await fs.unlink(listFile).catch(() => {});
 }
 
@@ -263,6 +354,15 @@ async function encodeMonthlyForCamera(cam, weekFiles, weekEndDate) {
     });
   });
 
+  // Concatenate the weekly VTT timecode files into a monthly one.
+  const monthlyVttFile = path.join(camMonthlyDir, `${weekEndDate}.vtt`);
+  const weeklyVttPaths = weekFiles.map((f) => path.join(camWeeklyDir, f.replace(".mp4", ".vtt")));
+  try {
+    await fs.writeFile(monthlyVttFile, await concatenateVtts(weeklyVttPaths));
+  } catch (err) {
+    console.warn(`[monthly] Could not generate timecode VTT for camera ${cam.id}: ${err.message}`);
+  }
+
   await fs.unlink(listFile).catch(() => {});
 }
 
@@ -323,6 +423,7 @@ async function pruneOldMonthlyVideos() {
     for (const file of files) {
       if (file.replace(".mp4", "") < cutoffStr) {
         await fs.unlink(path.join(camMonthlyDir, file));
+        await fs.unlink(path.join(camMonthlyDir, file.replace(".mp4", ".vtt"))).catch(() => {});
         console.log(`[prune-monthly] Deleted ${camMonthlyDir}/${file}`);
         totalDeleted++;
       }
@@ -351,6 +452,7 @@ async function pruneOldWeeklyVideos() {
     for (const file of files) {
       if (file.replace(".mp4", "") < cutoffStr) {
         await fs.unlink(path.join(camWeeklyDir, file));
+        await fs.unlink(path.join(camWeeklyDir, file.replace(".mp4", ".vtt"))).catch(() => {});
         console.log(`[prune-weekly] Deleted ${camWeeklyDir}/${file}`);
         totalDeleted++;
       }
@@ -381,6 +483,7 @@ async function pruneOldVideos() {
       const fileDate = file.replace(".mp4", "");
       if (fileDate < cutoffStr) {
         await fs.unlink(path.join(camDir, file));
+        await fs.unlink(path.join(camDir, file.replace(".mp4", ".vtt"))).catch(() => {});
         console.log(`[prune] Deleted ${camDir}/${file} (retain=${retain} days)`);
         totalDeleted++;
       }
