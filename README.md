@@ -3,6 +3,8 @@
 - Configured for 16 cams, dynamically scales to any amount.
 - Refresh every 5s.
 - Click a camera to view max size.
+- Click edit to change cameras and labels.
+- View which cameras are being recorded by the attached server, and uptime %.
 
 ## To Configure:
 - Simply open `src/App.jsx`
@@ -32,7 +34,8 @@ const CAMERAS = [
 - Replace with your own ID and name for the camera.
 - Use Ottawa-traffic.com, select cameras to find ID. Note: Highway cameras will not work as they fall under a different base web URL than Ottawa's traffic cams.
 
+## Server
+- The server files are written in NodeJS in the server directory. Run this server to DVR your cameras of choice over time and automatically generate timelapses.
 
 ### Notes
-- 100% vibe coded in 5 minutes with ChatGPT. Expect bugs.
 - My version deployed at: https://ottawa-traffic-cams.vercel.app/
