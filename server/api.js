@@ -135,6 +135,164 @@ export function createRouter() {
     }
   });
 
+  // GET /api/weekly
+  // Returns a list of all weekly timelapses, newest first.
+  router.get("/weekly", async (_req, res) => {
+    try {
+      const result = [];
+      for (const cam of CAMERAS) {
+        const weeklyDir = path.join(VIDEOS_DIR, String(cam.id), "weekly");
+        let files;
+        try {
+          files = (await fs.readdir(weeklyDir)).filter((f) => f.endsWith(".mp4"));
+        } catch {
+          continue;
+        }
+        for (const file of files) {
+          result.push({
+            cameraId: cam.id,
+            cameraName: cam.name,
+            weekEnd: file.replace(".mp4", ""),
+          });
+        }
+      }
+      result.sort((a, b) => b.weekEnd.localeCompare(a.weekEnd));
+      res.json(result);
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // GET /api/weekly/:cameraId/:date
+  // Streams a weekly MP4 with full Range header support.
+  router.get("/weekly/:cameraId/:date", (req, res) => {
+    const cameraId = parseInt(req.params.cameraId, 10);
+    const { date } = req.params;
+
+    if (!Number.isFinite(cameraId) || !VALID_CAMERA_IDS.has(cameraId)) {
+      return res.status(404).json({ error: "Unknown camera" });
+    }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      return res.status(400).json({ error: "Invalid date format — use YYYY-MM-DD" });
+    }
+
+    const filePath = path.join(VIDEOS_DIR, String(cameraId), "weekly", `${date}.mp4`);
+
+    let stat;
+    try {
+      stat = statSync(filePath);
+    } catch {
+      return res.status(404).json({ error: "Weekly video not found" });
+    }
+
+    const { size } = stat;
+    const range = req.headers.range;
+
+    if (range) {
+      const [startStr, endStr] = range.replace(/bytes=/, "").split("-");
+      const start = parseInt(startStr, 10);
+      const end = endStr ? parseInt(endStr, 10) : size - 1;
+
+      if (start >= size || end >= size) {
+        return res.status(416).set("Content-Range", `bytes */${size}`).end();
+      }
+
+      res.writeHead(206, {
+        "Content-Range": `bytes ${start}-${end}/${size}`,
+        "Accept-Ranges": "bytes",
+        "Content-Length": end - start + 1,
+        "Content-Type": "video/mp4",
+      });
+      createReadStream(filePath, { start, end }).pipe(res);
+    } else {
+      res.writeHead(200, {
+        "Content-Length": size,
+        "Content-Type": "video/mp4",
+        "Accept-Ranges": "bytes",
+      });
+      createReadStream(filePath).pipe(res);
+    }
+  });
+
+  // GET /api/monthly
+  // Returns a list of all monthly timelapses, newest first.
+  router.get("/monthly", async (_req, res) => {
+    try {
+      const result = [];
+      for (const cam of CAMERAS) {
+        const monthlyDir = path.join(VIDEOS_DIR, String(cam.id), "monthly");
+        let files;
+        try {
+          files = (await fs.readdir(monthlyDir)).filter((f) => f.endsWith(".mp4"));
+        } catch {
+          continue;
+        }
+        for (const file of files) {
+          result.push({
+            cameraId: cam.id,
+            cameraName: cam.name,
+            monthEnd: file.replace(".mp4", ""),
+          });
+        }
+      }
+      result.sort((a, b) => b.monthEnd.localeCompare(a.monthEnd));
+      res.json(result);
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // GET /api/monthly/:cameraId/:date
+  // Streams a monthly MP4 with full Range header support.
+  router.get("/monthly/:cameraId/:date", (req, res) => {
+    const cameraId = parseInt(req.params.cameraId, 10);
+    const { date } = req.params;
+
+    if (!Number.isFinite(cameraId) || !VALID_CAMERA_IDS.has(cameraId)) {
+      return res.status(404).json({ error: "Unknown camera" });
+    }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      return res.status(400).json({ error: "Invalid date format — use YYYY-MM-DD" });
+    }
+
+    const filePath = path.join(VIDEOS_DIR, String(cameraId), "monthly", `${date}.mp4`);
+
+    let stat;
+    try {
+      stat = statSync(filePath);
+    } catch {
+      return res.status(404).json({ error: "Monthly video not found" });
+    }
+
+    const { size } = stat;
+    const range = req.headers.range;
+
+    if (range) {
+      const [startStr, endStr] = range.replace(/bytes=/, "").split("-");
+      const start = parseInt(startStr, 10);
+      const end = endStr ? parseInt(endStr, 10) : size - 1;
+
+      if (start >= size || end >= size) {
+        return res.status(416).set("Content-Range", `bytes */${size}`).end();
+      }
+
+      res.writeHead(206, {
+        "Content-Range": `bytes ${start}-${end}/${size}`,
+        "Accept-Ranges": "bytes",
+        "Content-Length": end - start + 1,
+        "Content-Type": "video/mp4",
+      });
+      createReadStream(filePath, { start, end }).pipe(res);
+    } else {
+      res.writeHead(200, {
+        "Content-Length": size,
+        "Content-Type": "video/mp4",
+        "Accept-Ranges": "bytes",
+      });
+      createReadStream(filePath).pipe(res);
+    }
+  });
+
   // GET /api/status
   // Returns per-camera capture health: last capture time, frame count today, error count.
   router.get("/status", (_req, res) => {
