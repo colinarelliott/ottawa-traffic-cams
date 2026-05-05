@@ -32,10 +32,18 @@ export default function Stats() {
   if (error) return <div className="stats-error">Failed to load stats: {error}</div>;
   if (!stats) return <div className="stats-loading">Loading…</div>;
 
-  const cameras = Object.entries(stats).map(([id, s]) => ({ id: Number(id), ...s }));
+  const { todayDate, dayProgressPct, cameras: cameraMap } = stats;
+  const cameras = Object.entries(cameraMap).map(([id, s]) => ({ id: Number(id), ...s }));
 
   return (
     <div className="stats-page">
+      <div className="stats-summary">
+        <span className="stats-summary-date">{todayDate}</span>
+        <div className="stats-progress-bar-wrap" title={`${dayProgressPct}% through today`}>
+          <div className="stats-progress-bar-fill" style={{ width: `${dayProgressPct}%` }} />
+        </div>
+        <span className="stats-summary-pct">{dayProgressPct}% through today</span>
+      </div>
       <table className="stats-table">
         <thead>
           <tr>

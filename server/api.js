@@ -440,6 +440,7 @@ export function createRouter() {
     const second = parseInt(timeParts.find((p) => p.type === "second")?.value ?? "0", 10);
     const secondsSinceMidnight = hour * 3600 + minute * 60 + second;
     const expectedCount = Math.floor(secondsSinceMidnight / CAPTURE_INTERVAL_SEC);
+    const dayProgressPct = Math.round((secondsSinceMidnight / 86400) * 100);
 
     // Compute today's local date string (e.g. "2026-05-05") to find today's frames dir.
     const todayDate = new Intl.DateTimeFormat("en-CA", { timeZone: timezone }).format(nowDate);
@@ -457,8 +458,9 @@ export function createRouter() {
           todayCount = files.filter((f) => f.endsWith(".jpg")).length;
         } catch { /* directory doesn't exist yet */ }
 
+        const noSignalCount = status.noSignal;
         const retainPct = todayCount > 0
-          ? Math.round((status.retainedCount / todayCount) * 100)
+          ? Math.round(((todayCount - noSignalCount) / todayCount) * 100)
           : null;
         const capturePct = expectedCount > 0
           ? Math.round((todayCount / expectedCount) * 100)
@@ -489,13 +491,13 @@ export function createRouter() {
           retainedCount: status.retainedCount,
           retainPct,
           errors: status.errors,
-          noSignal: status.noSignal,
+          noSignal: noSignalCount,
           dailyVideos,
           weeklyVideos,
           monthlyVideos,
         };
       }
-      res.json(out);
+      res.json({ todayDate, dayProgressPct, cameras: out });
     } catch (err) {
       res.status(500).json({ error: err.message });
     }

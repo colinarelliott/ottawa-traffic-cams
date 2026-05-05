@@ -507,6 +507,41 @@ html, body, #root {
   color: #ccc;
 }
 
+.stats-summary {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 4px 14px;
+  font-size: 13px;
+}
+
+.stats-summary-date {
+  color: #888;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.stats-progress-bar-wrap {
+  flex: 1;
+  height: 6px;
+  background: #2a2a2a;
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.stats-progress-bar-fill {
+  height: 100%;
+  background: #1a73e8;
+  border-radius: 3px;
+  transition: width 1s linear;
+}
+
+.stats-summary-pct {
+  color: #888;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
 .stats-loading,
 .stats-error {
   padding: 24px;

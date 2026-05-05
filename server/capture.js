@@ -96,7 +96,10 @@ async function captureCamera(cam) {
   } else {
     // No-signal frame — substitute a black frame to preserve timing.
     await fs.copyFile(BLACK_FRAME_PATH, destPath);
-    captureStatus.get(cam.id).noSignal++;
+    const ns = captureStatus.get(cam.id);
+    ns.noSignal++;
+    // Persist so the count survives server restarts.
+    await fs.writeFile(path.join(dir, "_nosignal"), String(ns.noSignal)).catch(() => {});
     console.warn(`[capture] Camera ${cam.id}: no-signal frame replaced with black (got ${dims ? `${dims.width}x${dims.height}` : "unparseable"})`);
   }
 
@@ -126,6 +129,22 @@ export async function startCaptureService() {
   );
 
   await ensureBlackFrame();
+
+  // Re-initialize today's counters from disk so a restart doesn't lose the tally.
+  const todayDate = new Intl.DateTimeFormat("en-CA", { timeZone: TIMEZONE }).format(new Date());
+  await Promise.allSettled(
+    CAMERAS.map(async (cam) => {
+      const dir = path.join(FRAMES_DIR, String(cam.id), todayDate);
+      const s = captureStatus.get(cam.id);
+      try {
+        const files = await fs.readdir(dir);
+        s.todayCount = files.filter((f) => f.endsWith(".jpg")).length;
+        const noSignalStr = await fs.readFile(path.join(dir, "_nosignal"), "utf8").catch(() => "0");
+        s.noSignal = parseInt(noSignalStr, 10) || 0;
+        s.retainedCount = s.todayCount - s.noSignal;
+      } catch { /* no frames yet today — leave counters at 0 */ }
+    })
+  );
 
   captureAll(); // capture immediately on startup, then on each interval
   setInterval(captureAll, CAPTURE_INTERVAL_MS);
