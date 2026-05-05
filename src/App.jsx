@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import "./App.css";
 import Playback from "./Playback.jsx";
+import { apiFetch } from "./api.js";
 
 const REFRESH_MS = 5000;
 
@@ -27,6 +28,25 @@ const CAMERAS = [
 const getCameraUrl = (id, tick) =>
   `https://traffic.ottawa.ca/camera?id=${id}&timems=${tick}`;
 
+// Maps a 0–100 retain percentage to a red→yellow→green colour.
+function retainColor(pct) {
+  if (pct <= 50) {
+    // red (#e74c3c) → yellow (#f1c40f)
+    const t = pct / 50;
+    const r = Math.round(231 + (241 - 231) * t);
+    const g = Math.round(76  + (196 - 76)  * t);
+    const b = Math.round(60  + (15  - 60)  * t);
+    return `rgb(${r},${g},${b})`;
+  } else {
+    // yellow (#f1c40f) → green (#2ecc71)
+    const t = (pct - 50) / 50;
+    const r = Math.round(241 + (46  - 241) * t);
+    const g = Math.round(196 + (204 - 196) * t);
+    const b = Math.round(15  + (113 - 15)  * t);
+    return `rgb(${r},${g},${b})`;
+  }
+}
+
 function App() {
   const [mode, setMode] = useState("live"); // "live" | "playback"
   const [tick, setTick] = useState(Date.now());
@@ -41,6 +61,7 @@ function App() {
     }
   });
   const [swapping, setSwapping] = useState(null); // { index, id, name }
+  const [camStatus, setCamStatus] = useState(null); // { [cameraId]: { retainPct, ... } }
 
   function switchMode(m) {
     setMode(m);
@@ -78,6 +99,21 @@ function App() {
 
     return () => clearInterval(interval);
   }, [paused]);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function fetchStatus() {
+      try {
+        const data = await apiFetch("/api/status");
+        if (!cancelled) setCamStatus(data);
+      } catch {
+        // server unreachable — leave previous status intact
+      }
+    }
+    fetchStatus();
+    const interval = setInterval(fetchStatus, 30_000);
+    return () => { cancelled = true; clearInterval(interval); };
+  }, []);
 
   return (
     <div className="app">
@@ -121,7 +157,20 @@ function App() {
                   alt={cam.name}
                   referrerPolicy="no-referrer"
                 />
-                <div className="label">{cam.name}</div>
+                <div className="label">
+                  {camStatus?.[cam.id] && (
+                    <span className="label-rec" title="Recording">●</span>
+                  )}
+                  <span>{cam.name}</span>
+                  {camStatus?.[cam.id]?.retainPct != null && (
+                    <span
+                      className="label-pct"
+                      style={{ color: retainColor(camStatus[cam.id].retainPct) }}
+                    >
+                      {camStatus[cam.id].retainPct}%
+                    </span>
+                  )}
+                </div>
                 <button
                   className="cam-edit-btn"
                   title="Swap camera"
