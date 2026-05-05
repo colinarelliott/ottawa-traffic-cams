@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import "./App.css";
 import Playback from "./Playback.jsx";
+import Stats from "./Stats.jsx";
 import { apiFetch } from "./api.js";
 
 const REFRESH_MS = 5000;
@@ -132,6 +133,12 @@ function App() {
           >
             Playback
           </button>
+          <button
+            className={`mode-tab${mode === "stats" ? " active" : ""}`}
+            onClick={() => switchMode("stats")}
+          >
+            Stats
+          </button>
           {cameras !== CAMERAS && cameras.some((c, i) => c.id !== CAMERAS[i]?.id || c.name !== CAMERAS[i]?.name) && (
             <button className="mode-tab reset-tab" onClick={resetCameras} title="Restore default cameras">
               Reset
@@ -228,6 +235,7 @@ function App() {
       )}
 
       {mode === "playback" && <Playback />}
+      {mode === "stats" && <Stats />}
     </div>
   );
 }

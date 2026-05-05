@@ -497,3 +497,74 @@ html, body, #root {
     min-height: 240px;
   }
 }
+
+/* ── Stats page ──────────────────────────────────────── */
+
+.stats-page {
+  flex: 1;
+  overflow: auto;
+  padding: 16px;
+  color: #ccc;
+}
+
+.stats-loading,
+.stats-error {
+  padding: 24px;
+  color: #888;
+  font-size: 14px;
+}
+
+.stats-error {
+  color: #e74c3c;
+}
+
+.stats-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.stats-th {
+  padding: 8px 12px;
+  text-align: right;
+  border-bottom: 1px solid #333;
+  color: #888;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.stats-th--name {
+  text-align: left;
+}
+
+.stats-th--sub {
+  color: #666;
+  font-size: 11px;
+}
+
+.stats-row:hover {
+  background: #1a1a1a;
+}
+
+.stats-td {
+  padding: 7px 12px;
+  border-bottom: 1px solid #1e1e1e;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+.stats-td--name {
+  color: #ddd;
+}
+
+.stats-td--num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  color: #aaa;
+}
+
+.stats-td--pct {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
