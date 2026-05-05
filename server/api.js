@@ -419,5 +419,74 @@ export function createRouter() {
     res.json(out);
   });
 
+  // GET /api/stats
+  // Returns per-camera capture statistics including file counts and retention info.
+  router.get("/stats", async (_req, res) => {
+    const CAPTURE_INTERVAL_SEC = 5;
+    const timezone = process.env.TZ_LOCAL ?? "America/Toronto";
+
+    // Compute seconds elapsed since local midnight.
+    const nowDate = new Date();
+    const timeParts = new Intl.DateTimeFormat("en-US", {
+      timeZone: timezone,
+      hour: "numeric",
+      minute: "numeric",
+      second: "numeric",
+      hour12: false,
+    }).formatToParts(nowDate);
+    const hour   = parseInt(timeParts.find((p) => p.type === "hour")?.value   ?? "0", 10) % 24;
+    const minute = parseInt(timeParts.find((p) => p.type === "minute")?.value ?? "0", 10);
+    const second = parseInt(timeParts.find((p) => p.type === "second")?.value ?? "0", 10);
+    const secondsSinceMidnight = hour * 3600 + minute * 60 + second;
+    const expectedCount = Math.floor(secondsSinceMidnight / CAPTURE_INTERVAL_SEC);
+
+    try {
+      const out = {};
+      for (const cam of CAMERAS) {
+        const status = captureStatus.get(cam.id);
+        const retainPct = status.todayCount > 0
+          ? Math.round((status.retainedCount / status.todayCount) * 100)
+          : null;
+        const capturePct = expectedCount > 0
+          ? Math.round((status.todayCount / expectedCount) * 100)
+          : null;
+
+        const camVideoDir = path.join(VIDEOS_DIR, String(cam.id));
+        let dailyVideos = 0, weeklyVideos = 0, monthlyVideos = 0;
+        try {
+          const files = await fs.readdir(camVideoDir);
+          dailyVideos = files.filter((f) => f.endsWith(".mp4")).length;
+        } catch { /* no recordings yet */ }
+        try {
+          const files = await fs.readdir(path.join(camVideoDir, "weekly"));
+          weeklyVideos = files.filter((f) => f.endsWith(".mp4")).length;
+        } catch { /* no weekly recordings yet */ }
+        try {
+          const files = await fs.readdir(path.join(camVideoDir, "monthly"));
+          monthlyVideos = files.filter((f) => f.endsWith(".mp4")).length;
+        } catch { /* no monthly recordings yet */ }
+
+        out[cam.id] = {
+          name: cam.name,
+          retainDays: cam.retainDays,
+          lastCapture: status.lastCapture,
+          todayCount: status.todayCount,
+          expectedCount,
+          capturePct,
+          retainedCount: status.retainedCount,
+          retainPct,
+          errors: status.errors,
+          noSignal: status.noSignal,
+          dailyVideos,
+          weeklyVideos,
+          monthlyVideos,
+        };
+      }
+      res.json(out);
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
   return router;
 }
