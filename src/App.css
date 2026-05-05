@@ -537,11 +537,6 @@ html, body, #root {
   text-align: left;
 }
 
-.stats-th--sub {
-  color: #666;
-  font-size: 11px;
-}
-
 .stats-row:hover {
   background: #1a1a1a;
 }

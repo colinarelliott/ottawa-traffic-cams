@@ -36,6 +36,7 @@ function checkVideoToken(resource, token) {
 }
 
 const VIDEOS_DIR = process.env.VIDEOS_DIR ?? "./data/videos";
+const FRAMES_DIR = process.env.FRAMES_DIR ?? "./data/frames";
 
 // Whitelist of valid camera IDs for fast O(1) lookup.
 const VALID_CAMERA_IDS = new Set(CAMERAS.map((c) => c.id));
@@ -440,15 +441,27 @@ export function createRouter() {
     const secondsSinceMidnight = hour * 3600 + minute * 60 + second;
     const expectedCount = Math.floor(secondsSinceMidnight / CAPTURE_INTERVAL_SEC);
 
+    // Compute today's local date string (e.g. "2026-05-05") to find today's frames dir.
+    const todayDate = new Intl.DateTimeFormat("en-CA", { timeZone: timezone }).format(nowDate);
+
     try {
       const out = {};
       for (const cam of CAMERAS) {
         const status = captureStatus.get(cam.id);
-        const retainPct = status.todayCount > 0
-          ? Math.round((status.retainedCount / status.todayCount) * 100)
+
+        // Count actual .jpg files on disk so a server restart doesn't lose the tally.
+        let todayCount = 0;
+        try {
+          const framesDir = path.join(FRAMES_DIR, String(cam.id), todayDate);
+          const files = await fs.readdir(framesDir);
+          todayCount = files.filter((f) => f.endsWith(".jpg")).length;
+        } catch { /* directory doesn't exist yet */ }
+
+        const retainPct = todayCount > 0
+          ? Math.round((status.retainedCount / todayCount) * 100)
           : null;
         const capturePct = expectedCount > 0
-          ? Math.round((status.todayCount / expectedCount) * 100)
+          ? Math.round((todayCount / expectedCount) * 100)
           : null;
 
         const camVideoDir = path.join(VIDEOS_DIR, String(cam.id));
@@ -470,7 +483,7 @@ export function createRouter() {
           name: cam.name,
           retainDays: cam.retainDays,
           lastCapture: status.lastCapture,
-          todayCount: status.todayCount,
+          todayCount,
           expectedCount,
           capturePct,
           retainedCount: status.retainedCount,

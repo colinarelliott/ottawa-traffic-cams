@@ -41,22 +41,14 @@ export default function Stats() {
           <tr>
             <th className="stats-th stats-th--name">Camera</th>
             <th className="stats-th">Captured</th>
-            <th className="stats-th">Expected</th>
+            <th className="stats-th">Expected&nbsp;Today</th>
+            <th className="stats-th">Unavailable</th>
             <th className="stats-th">Capture&nbsp;%</th>
             <th className="stats-th">Valid&nbsp;%</th>
             <th className="stats-th">Retention</th>
-            <th className="stats-th" colSpan={3}>Saved Timelapses</th>
-          </tr>
-          <tr>
-            <th className="stats-th" />
-            <th className="stats-th" />
-            <th className="stats-th" />
-            <th className="stats-th" />
-            <th className="stats-th" />
-            <th className="stats-th" />
-            <th className="stats-th stats-th--sub">Daily</th>
-            <th className="stats-th stats-th--sub">Weekly</th>
-            <th className="stats-th stats-th--sub">Monthly</th>
+            <th className="stats-th">Daily</th>
+            <th className="stats-th">Weekly</th>
+            <th className="stats-th">Monthly</th>
           </tr>
         </thead>
         <tbody>
@@ -65,6 +57,7 @@ export default function Stats() {
               <td className="stats-td stats-td--name">{cam.name}</td>
               <td className="stats-td stats-td--num">{cam.todayCount.toLocaleString()}</td>
               <td className="stats-td stats-td--num">{cam.expectedCount.toLocaleString()}</td>
+              <td className="stats-td stats-td--num">{cam.noSignal.toLocaleString()}</td>
               <td className="stats-td stats-td--pct" style={{ color: pctColor(cam.capturePct) }}>
                 {cam.capturePct != null ? `${cam.capturePct}%` : "—"}
               </td>
