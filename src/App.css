@@ -63,7 +63,7 @@ html, body, #root {
 .grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr); /* hard cap at 4 columns */
-  grid-template-rows: repeat(3, 1fr);    /* 12 cams → 3 rows */
+  grid-auto-rows: 1fr;                   /* all rows equal height, regardless of count */
   gap: 4px;
   padding: 4px;
   width: 100%;
