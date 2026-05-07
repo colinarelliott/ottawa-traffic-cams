@@ -20,6 +20,8 @@ export default function Playback() {
   const [selected, setSelected] = useState(null); // { cameraId, cameraName, date, type }
   const [resolvedSrc, setResolvedSrc] = useState(null);
   const [resolvedVttSrc, setResolvedVttSrc] = useState(null);
+  const [castReady, setCastReady] = useState(false);
+  const [casting, setCasting] = useState(false);
 
   // Refs so Cast event-listener callbacks (created once) always see the latest values.
   const resolvedSrcRef = useRef(null);
@@ -27,33 +29,43 @@ export default function Playback() {
   useEffect(() => { resolvedSrcRef.current = resolvedSrc; }, [resolvedSrc]);
   useEffect(() => { selectedRef.current = selected; }, [selected]);
 
-  // Initialise the Cast SDK once. The __onGCastApiAvailable callback fires when the
-  // SDK finishes loading; if it already loaded, we call initCast() directly.
+  // Initialise the Cast SDK once.
+  // window.__castApiAvailable is set by the inline script in index.html, which
+  // defines window.__onGCastApiAvailable BEFORE the SDK script tag — guaranteeing
+  // the callback is always captured regardless of load order.
   useEffect(() => {
     function initCast() {
-      window.cast.framework.CastContext.getInstance().setOptions({
-        receiverApplicationId: window.chrome.cast.media.DEFAULT_MEDIA_RECEIVER_APP_ID,
-        autoJoinPolicy: window.chrome.cast.AutoJoinPolicy.ORIGIN_SCOPED,
-      });
-      const player = new window.cast.framework.RemotePlayer();
-      const controller = new window.cast.framework.RemotePlayerController(player);
-      controller.addEventListener(
-        window.cast.framework.RemotePlayerEventType.IS_CONNECTED_CHANGED,
-        () => {
-          if (player.isConnected) {
-            const s = selectedRef.current;
-            loadMediaToCast(
-              resolvedSrcRef.current,
-              s ? `${s.cameraName} \u2014 ${s.date}` : ""
-            );
+      try {
+        window.cast.framework.CastContext.getInstance().setOptions({
+          receiverApplicationId: "CC1AD845", // Default Media Receiver
+          autoJoinPolicy: window.chrome.cast.AutoJoinPolicy.ORIGIN_SCOPED,
+        });
+        const player = new window.cast.framework.RemotePlayer();
+        const controller = new window.cast.framework.RemotePlayerController(player);
+        controller.addEventListener(
+          window.cast.framework.RemotePlayerEventType.IS_CONNECTED_CHANGED,
+          () => {
+            setCasting(player.isConnected);
+            if (player.isConnected) {
+              const s = selectedRef.current;
+              loadMediaToCast(
+                resolvedSrcRef.current,
+                s ? `${s.cameraName} \u2014 ${s.date}` : ""
+              );
+            }
           }
-        }
-      );
+        );
+        setCastReady(true);
+      } catch (e) {
+        console.error("Cast init error:", e);
+      }
     }
-    if (window.cast?.framework) {
+    if (window.__castApiAvailable) {
+      // SDK already loaded and called __onGCastApiAvailable before this effect ran.
       initCast();
     } else {
-      window.__onGCastApiAvailable = (isAvailable) => { if (isAvailable) initCast(); };
+      // SDK hasn't finished loading yet — the inline script will call us back.
+      window.__castApiReadyCb = (ok) => { if (ok) initCast(); };
     }
   }, []);
 
@@ -259,7 +271,18 @@ export default function Playback() {
                   selected.date
                 }
               </span>
-              <google-cast-launcher className="cast-launcher" title="Cast to TV" />
+              {castReady && (
+                <button
+                  className={`cast-btn${casting ? " cast-btn--active" : ""}`}
+                  title={casting ? "Casting — click to stop" : "Cast to TV"}
+                  onClick={() => window.cast.framework.CastContext.getInstance().requestSession()}
+                >
+                  {/* Standard Google Cast icon */}
+                  <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20">
+                    <path d="M1 18v3h3c0-1.66-1.34-3-3-3zm0-4v2c2.76 0 5 2.24 5 5h2c0-3.87-3.13-7-7-7zm0-4v2c4.97 0 9 4.03 9 9h2C11 15.07 6.48 10 1 10zm20-7H3c-1.1 0-2 .9-2 2v3h2V7h18v10h-7v2h7c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2z" />
+                  </svg>
+                </button>
+              )}
             </div>
             <video
               key={`${selected.cameraId}-${selected.date}-${selected.type}`}

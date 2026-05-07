@@ -471,14 +471,26 @@ html, body, #root {
   gap: 8px;
 }
 
-.cast-launcher {
-  --connected-color: #4285f4;
-  --disconnected-color: #666;
-  width: 24px;
-  height: 24px;
-  display: block;
-  flex-shrink: 0;
+.cast-btn {
+  background: none;
+  border: none;
+  padding: 2px 4px;
   cursor: pointer;
+  color: #666;
+  display: flex;
+  align-items: center;
+  border-radius: 4px;
+  flex-shrink: 0;
+  transition: color 0.15s;
+}
+.cast-btn:hover {
+  color: #ccc;
+}
+.cast-btn--active {
+  color: #4285f4;
+}
+.cast-btn--active:hover {
+  color: #5a9bf5;
 }
 
 .pb-video {
