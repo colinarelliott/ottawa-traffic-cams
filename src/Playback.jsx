@@ -1,5 +1,15 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { apiFetch, getVideoSrc, getWeeklySrc, getMonthlySrc, getVideoVttSrc, getWeeklyVttSrc, getMonthlyVttSrc } from "./api.js";
+
+// Load a video URL into the active Cast session (no-op if no session is open).
+function loadMediaToCast(src, title) {
+  const session = window.cast?.framework?.CastContext?.getInstance()?.getCurrentSession();
+  if (!session || !src) return;
+  const mediaInfo = new window.chrome.cast.media.MediaInfo(src, "video/mp4");
+  mediaInfo.metadata = new window.chrome.cast.media.GenericMediaMetadata();
+  mediaInfo.metadata.title = title ?? "";
+  session.loadMedia(new window.chrome.cast.media.LoadRequest(mediaInfo)).catch(console.error);
+}
 
 export default function Playback() {
   const [view, setView] = useState("daily"); // "daily" | "weekly" | "monthly"
@@ -10,6 +20,49 @@ export default function Playback() {
   const [selected, setSelected] = useState(null); // { cameraId, cameraName, date, type }
   const [resolvedSrc, setResolvedSrc] = useState(null);
   const [resolvedVttSrc, setResolvedVttSrc] = useState(null);
+
+  // Refs so Cast event-listener callbacks (created once) always see the latest values.
+  const resolvedSrcRef = useRef(null);
+  const selectedRef = useRef(null);
+  useEffect(() => { resolvedSrcRef.current = resolvedSrc; }, [resolvedSrc]);
+  useEffect(() => { selectedRef.current = selected; }, [selected]);
+
+  // Initialise the Cast SDK once. The __onGCastApiAvailable callback fires when the
+  // SDK finishes loading; if it already loaded, we call initCast() directly.
+  useEffect(() => {
+    function initCast() {
+      window.cast.framework.CastContext.getInstance().setOptions({
+        receiverApplicationId: window.chrome.cast.media.DEFAULT_MEDIA_RECEIVER_APP_ID,
+        autoJoinPolicy: window.chrome.cast.AutoJoinPolicy.ORIGIN_SCOPED,
+      });
+      const player = new window.cast.framework.RemotePlayer();
+      const controller = new window.cast.framework.RemotePlayerController(player);
+      controller.addEventListener(
+        window.cast.framework.RemotePlayerEventType.IS_CONNECTED_CHANGED,
+        () => {
+          if (player.isConnected) {
+            const s = selectedRef.current;
+            loadMediaToCast(
+              resolvedSrcRef.current,
+              s ? `${s.cameraName} \u2014 ${s.date}` : ""
+            );
+          }
+        }
+      );
+    }
+    if (window.cast?.framework) {
+      initCast();
+    } else {
+      window.__onGCastApiAvailable = (isAvailable) => { if (isAvailable) initCast(); };
+    }
+  }, []);
+
+  // When the selected video changes while already casting, push the new video.
+  // loadMediaToCast is a no-op when no Cast session is active.
+  useEffect(() => {
+    if (!resolvedSrc || !selected) return;
+    loadMediaToCast(resolvedSrc, `${selected.cameraName} \u2014 ${selected.date}`);
+  }, [resolvedSrc]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     apiFetch("/api/videos")
@@ -199,11 +252,14 @@ export default function Playback() {
         {selected ? (
           <>
             <div className="pb-player-title">
-              {selected.cameraName} &mdash; {
-                selected.type === "monthly" ? `Month ending ${selected.date}` :
-                selected.type === "weekly"  ? `Week ending ${selected.date}` :
-                selected.date
-              }
+              <span>
+                {selected.cameraName} &mdash; {
+                  selected.type === "monthly" ? `Month ending ${selected.date}` :
+                  selected.type === "weekly"  ? `Week ending ${selected.date}` :
+                  selected.date
+                }
+              </span>
+              <google-cast-launcher className="cast-launcher" title="Cast to TV" />
             </div>
             <video
               key={`${selected.cameraId}-${selected.date}-${selected.type}`}

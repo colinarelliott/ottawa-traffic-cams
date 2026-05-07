@@ -463,9 +463,22 @@ html, body, #root {
 .pb-player-title {
   color: #999;
   font-size: 13px;
-  padding: 8px 0;
-  align-self: flex-start;
-  padding-left: 16px;
+  padding: 8px 16px;
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.cast-launcher {
+  --connected-color: #4285f4;
+  --disconnected-color: #666;
+  width: 24px;
+  height: 24px;
+  display: block;
+  flex-shrink: 0;
+  cursor: pointer;
 }
 
 .pb-video {
