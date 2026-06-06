@@ -17,6 +17,7 @@ export const CAMERAS = [
   { id: 366, name: "[366] Preston/P.O.W.",         retainDays: 90 },
   { id: 171, name: "[171] Bronson/Sunnyside",      retainDays: 5 },
   { id: 283, name: "[283] Bronson/Raven",          retainDays: 5 },
+  { id: 228, name: "[228] Greenfield/Main",        retainDays: 5 },
 ];
 
 export const getCameraUrl = (id) =>
